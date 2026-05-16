@@ -1,0 +1,40 @@
+# ── Core Agent Framework ──────────────────────────────────────
+langgraph==0.2.28          # Agent orchestration: defines nodes, edges, state graph
+langchain==0.2.16          # Base LangChain: tools, prompts, message types
+langchain-google-genai==1.0.10  # Google Gemini integration for LangChain
+langchain-community==0.2.16     # Community integrations (Tavily tool wrapper)
+
+# ── LLM Provider ──────────────────────────────────────────────
+google-generativeai==0.7.2      # Gemini 1.5 Flash SDK — powers all 4 agents
+
+# ── Search Tools ──────────────────────────────────────────────
+tavily-python==0.3.9            # Tavily search API — real-time web + academic search
+arxiv==2.1.3                    # ArXiv API wrapper — backup academic paper fetcher
+requests==2.32.3                # HTTP requests — used by arxiv_fetch.py
+
+# ── Frontend UI ───────────────────────────────────────────────
+streamlit==1.37.1               # Web UI framework — renders the app in the browser
+
+# ── Report Export ─────────────────────────────────────────────
+fpdf2==2.7.9                    # PDF generation — converts final report to .pdf
+markdown2==2.5.0                # Markdown to HTML converter — used in PDF pipeline
+
+# ── Environment & Config ──────────────────────────────────────
+python-dotenv==1.0.1            # Loads API keys from .env file
+
+# ── Evaluation & Benchmarking ─────────────────────────────────
+pandas==2.2.2                   # Data analysis — used in benchmark.py for metrics
+tabulate==0.9.0                 # Pretty-prints benchmark results as tables
+
+# ── Utilities ─────────────────────────────────────────────────
+pydantic==2.8.2                 # Data validation — used for LangGraph state schema
+typing-extensions==4.12.2       # Extra type hints (TypedDict, Annotated) for state.py
+
+
+
+# Core Agent Framework — LangGraph + LangChain are the backbone. LangGraph runs the graph, LangChain provides the building blocks (tools, prompts, message types).
+# LLM Provider — google-generativeai is the actual Gemini SDK. The langchain-google-genai package wraps it so LangChain/LangGraph can call it cleanly.
+# Search Tools — Tavily is the primary search engine. arxiv is the backup for academic papers specifically.
+# Frontend — Just Streamlit. Clean and minimal.
+# Export — fpdf2 generates the PDF. markdown2 converts our Markdown report to HTML first, which fpdf2 then renders.
+# Pydantic — Critical for state.py. LangGraph state schemas use Pydantic models under the hood.

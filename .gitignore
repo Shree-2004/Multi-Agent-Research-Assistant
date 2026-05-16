@@ -1,0 +1,19 @@
+# ── Environment ────────────────────────────────────────────
+.env
+venv/
+
+# ── Python Cache ───────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── Generated Output ──────────────────────────────────────
+output/reports/
+evaluate/benchmark_results.csv
+
+# ── IDE / OS ──────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
