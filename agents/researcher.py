@@ -15,16 +15,27 @@ from tools.search import search_web, search_academic
 from tools.arxiv_fetch import fetch_arxiv_papers, combine_sources
 from graph.state import ResearchState
 
-# Load environment variables
-load_dotenv()
 
+load_dotenv(override=True)
+
+from dotenv import find_dotenv
+
+print("=" * 60)
+print("Loaded .env:", find_dotenv())
+
+key = os.getenv("GOOGLE_API_KEY")
+
+print("GOOGLE_API_KEY Found:", key is not None)
+print("Key Prefix:", key[:10] if key else "None")
+print("GEMINI_MODEL =", repr(os.getenv("GEMINI_MODEL")))
+print("=" * 60)
 
 # ── Initialize Gemini LLM ──────────────────────────────────────
 # This is the AI brain powering the Researcher agent
 llm = ChatGoogleGenerativeAI(
-    model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
-    google_api_key=os.getenv("GOOGLE_API_KEY"),
-    temperature=0.3,   # Low temperature = more focused, less creative
+    model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+    google_api_key=key,
+    temperature=0.3,
     max_tokens=int(os.getenv("MAX_TOKENS", 8192))
 )
 
