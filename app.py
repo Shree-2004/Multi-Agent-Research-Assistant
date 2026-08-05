@@ -13,6 +13,12 @@ from dotenv import load_dotenv
 from graph.pipeline import run_pipeline
 from output.report_exporter import export_report
 
+# Windows consoles default to cp1252, which can't encode the
+# checkmarks/arrows the pipeline prints to the server log — force UTF-8.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Load environment variables
 load_dotenv()
 

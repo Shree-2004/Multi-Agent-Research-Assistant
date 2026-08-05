@@ -22,6 +22,12 @@ from agents.analyst import analyst_node
 from agents.writer import writer_node
 from agents.critic import critic_node
 
+# Windows consoles default to cp1252, which can't encode the
+# checkmarks/emoji in the log output below — force UTF-8.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 load_dotenv()
 
 

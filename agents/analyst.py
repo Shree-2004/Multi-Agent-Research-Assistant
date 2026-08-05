@@ -18,6 +18,12 @@ from langchain.schema import HumanMessage, SystemMessage
 
 from graph.state import ResearchState
 
+# Windows consoles default to cp1252, which can't encode the
+# checkmarks/arrows in the log output below — force UTF-8.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Load environment variables
 load_dotenv()
 

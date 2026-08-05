@@ -12,8 +12,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 import markdown2
 from dotenv import load_dotenv
+
+# Windows consoles default to cp1252, which can't encode the
+# checkmarks in the log output below — force UTF-8.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 load_dotenv()
 
@@ -138,7 +145,7 @@ def export_pdf(topic: str, report: str) -> str:
             pdf.set_font("Helvetica", "B", 18)
             pdf.set_text_color(30, 30, 30)
             title_text = line[2:].encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 10, title_text)
+            pdf.multi_cell(0, 10, title_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(3)
 
         elif line.startswith("## "):
@@ -146,7 +153,7 @@ def export_pdf(topic: str, report: str) -> str:
             pdf.set_font("Helvetica", "B", 13)
             pdf.set_text_color(50, 80, 140)  # Blue color for headings
             heading_text = line[3:].encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 8, heading_text)
+            pdf.multi_cell(0, 8, heading_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(2)
 
         elif line.startswith("### "):
@@ -154,7 +161,7 @@ def export_pdf(topic: str, report: str) -> str:
             pdf.set_font("Helvetica", "B", 11)
             pdf.set_text_color(70, 70, 70)
             subheading_text = line[4:].encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 7, subheading_text)
+            pdf.multi_cell(0, 7, subheading_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
         elif line.startswith("- ") or line.startswith("* "):
             # Bullet point
@@ -162,21 +169,21 @@ def export_pdf(topic: str, report: str) -> str:
             pdf.set_text_color(50, 50, 50)
             bullet_text = "• " + line[2:]
             bullet_text = bullet_text.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 6, bullet_text)
+            pdf.multi_cell(0, 6, bullet_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
         elif line.startswith("[") and "] " in line:
             # Reference line
             pdf.set_font("Helvetica", "I", 9)
             pdf.set_text_color(100, 100, 100)
             ref_text = line.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 6, ref_text)
+            pdf.multi_cell(0, 6, ref_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
         else:
             # Regular paragraph text
             pdf.set_font("Helvetica", "", 10)
             pdf.set_text_color(50, 50, 50)
             para_text = line.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 6, para_text)
+            pdf.multi_cell(0, 6, para_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     # Save the PDF
     pdf.output(filepath)
