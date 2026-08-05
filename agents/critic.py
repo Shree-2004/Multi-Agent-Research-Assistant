@@ -18,6 +18,12 @@ from langchain.schema import HumanMessage, SystemMessage
 
 from graph.state import ResearchState
 
+# Windows consoles default to cp1252, which can't encode the
+# checkmarks/arrows in the log output below — force UTF-8.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Load environment variables
 load_dotenv()
 
@@ -131,6 +137,19 @@ def critic_node(state: ResearchState) -> ResearchState:
             "iteration_count": iteration_count
         }
     else:
+        new_iteration = iteration_count + 1
+
+        # If this revision would exceed the allowed cycles, force approve
+        # the current draft now instead of looping back for another pass
+        # that would just get cut off with no final_report set.
+        if new_iteration >= max_iterations:
+            print(f"[Critic] Max revision cycles reached. Force approving current draft.")
+            return {
+                "final_report": draft_report,
+                "critic_feedback": None,
+                "iteration_count": new_iteration
+            }
+
         # Report needs work — extract feedback for Analyst
         print(f"[Critic] Report needs revision. Sending feedback to Analyst.")
 
@@ -140,7 +159,7 @@ def critic_node(state: ResearchState) -> ResearchState:
         return {
             "final_report": None,
             "critic_feedback": feedback,
-            "iteration_count": iteration_count + 1  # Increment loop counter
+            "iteration_count": new_iteration
         }
 
 
@@ -174,24 +193,21 @@ def should_continue(state: ResearchState) -> str:
     LangGraph routing function — decides what happens after Critic runs.
     This is called by the graph to determine the next node.
 
+    critic_node already enforces the max-iteration cap (it sets
+    final_report once the cap is hit instead of leaving feedback),
+    so this only needs to check which of those two it set.
+
     Returns:
         "analyst"    → if report needs revision (loop back)
         "end"        → if report is approved (finish pipeline)
     """
-    # If final_report is set, we're done
+    # If final_report is set, we're done (approved, or cap reached)
     if state.get("final_report"):
         print("[Router] Report approved → ending pipeline")
         return "end"
 
     # If there's feedback, loop back to analyst
     if state.get("critic_feedback"):
-        iteration = state.get("iteration_count", 0)
-        max_iter = int(os.getenv("MAX_REFLECTION_ITERATIONS", 2))
-
-        if iteration >= max_iter:
-            print("[Router] Max iterations reached → ending pipeline")
-            return "end"
-
         print(f"[Router] Needs revision → routing back to analyst")
         return "analyst"
 
