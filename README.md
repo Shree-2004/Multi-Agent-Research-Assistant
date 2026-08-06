@@ -141,30 +141,42 @@ Run the benchmark module to measure per-agent execution time and report quality:
 python evaluate/benchmark.py
 ```
 
-**Sample output:**
+**Real run** (`evaluate/benchmark_results.csv`, topic: "latest advances in protein
+folding AI") — this particular run needed one full reflection/revision cycle
+(the Critic sent it back once for missing citation dates before force-approving
+on the second pass), so the total includes a full extra Analyst→Writer→Critic
+pass, not just the fast path:
+
 ```
 📊 Agent Execution Times:
-╭──────────────┬────────╮
-│ Agent        │ Time   │
-├──────────────┼────────┤
-│ Researcher   │ 8.42s  │
-│ Analyst      │ 5.31s  │
-│ Writer       │ 6.17s  │
-│ Critic       │ 3.89s  │
-│ TOTAL        │ 23.79s │
-╰──────────────┴────────╯
+╭─────────────────────┬─────────╮
+│ Agent                │ Time    │
+├─────────────────────┼─────────┤
+│ Researcher           │ 21.01s  │
+│ Analyst              │ 22.42s  │
+│ Writer               │ 22.18s  │
+│ Critic                │ 23.25s  │
+│ Analyst (revision 1) │ 29.72s  │
+│ Writer (revision 1)  │ 23.43s  │
+│ Critic (revision 1)  │ 13.95s  │
+│ TOTAL                 │ 155.97s │
+╰─────────────────────┴─────────╯
 
 📈 Quality Metrics:
 ╭──────────────────┬────────╮
 │ Metric           │ Value  │
 ├──────────────────┼────────┤
-│ Sources Found    │ 12     │
-│ Word Count       │ 1043   │
+│ Sources Found    │ 17     │
+│ Word Count       │ 1816   │
 │ Sections Found   │ 6/6    │
-│ Citation Count   │ 18     │
-│ OVERALL SCORE    │ 8.7/10 │
+│ Citation Count   │ 27     │
+│ OVERALL SCORE    │ 9.4/10 │
 ╰──────────────────┴────────╯
 ```
+
+A run that the Critic approves on the first pass (no revision cycle) finishes in
+roughly a third of that time — the reflection loop trades latency for the Critic's
+own quality checklist actually being enforced rather than rubber-stamped.
 
 Results are automatically appended to `evaluate/benchmark_results.csv` for cross-run comparison.
 
