@@ -15,6 +15,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, SystemMessage
+from langchain_core.pydantic_v1 import BaseModel, Field
+from typing import Literal
 
 from graph.state import ResearchState
 
@@ -54,22 +56,32 @@ CHECKLIST:
 4. COMPLETENESS — Are there obvious important points missing?
 5. REFERENCES — Does the References section list actual sources with URLs?
 
-Your response must follow this EXACT format:
-
-VERDICT: APPROVED or NEEDS_REVISION
-
-ISSUES_FOUND:
-- Issue 1 (if any)
-- Issue 2 (if any)
-- Write "None" if no issues found
-
-SPECIFIC_FEEDBACK:
-- Specific actionable feedback for the Analyst to address
-- Be precise — say WHAT is wrong and WHERE
-- Write "None" if verdict is APPROVED
-
-QUALITY_SCORE: X/10
+Return your review using the CriticReview tool. Feedback must be
+specific and actionable for the Analyst — say WHAT is wrong and WHERE.
 """
+
+
+# ── Structured Review Schema ───────────────────────────────────
+# The verdict comes back as a typed field instead of free text.
+# Substring-matching "NEEDS_REVISION" in prose misfired whenever
+# the model echoed the format template or mentioned the phrase.
+# Issues/feedback are newline-separated strings, not List[str]:
+# langchain-google-genai 1.0.10 drops the array item type and
+# Gemini rejects the schema.
+class CriticReview(BaseModel):
+    verdict: Literal["APPROVED", "NEEDS_REVISION"] = Field(
+        description="APPROVED if the report passes the checklist, otherwise NEEDS_REVISION"
+    )
+    issues_found: str = Field(
+        description="Checklist failures found, one per line; empty string if none"
+    )
+    specific_feedback: str = Field(
+        description="Actionable fixes for the Analyst, one per line; empty string if APPROVED"
+    )
+    quality_score: int = Field(description="Overall quality from 1 to 10")
+
+
+structured_llm = llm.with_structured_output(CriticReview)
 
 
 def critic_node(state: ResearchState) -> ResearchState:
@@ -113,19 +125,24 @@ def critic_node(state: ResearchState) -> ResearchState:
         HumanMessage(content=f"Review this research report:\n\n{draft_report}")
     ]
 
-    response = llm.invoke(messages)
-    review = response.content.strip()
+    review = structured_llm.invoke(messages)
 
-    print(f"[Critic] Review complete.")
-    print(f"[Critic] Raw verdict:\n{review[:300]}...")
+    # ── Step 3: Handle an unparseable review ───────────────────
+    # If the model returns no tool call we have no verdict at all.
+    # Approving silently would hide that, so say so loudly.
+    if review is None:
+        print("[Critic] WARNING: no structured verdict returned — "
+              "force-approving an UNREVIEWED draft.")
+        return {
+            "final_report": draft_report,
+            "critic_feedback": None,
+            "iteration_count": iteration_count
+        }
 
-    # ── Step 3: Parse the verdict ──────────────────────────────
-    # We check if the Critic said APPROVED or NEEDS_REVISION
-    verdict = "APPROVED"  # Default to approved
-    if "NEEDS_REVISION" in review.upper():
-        verdict = "NEEDS_REVISION"
-
-    print(f"[Critic] Verdict: {verdict}")
+    verdict = review.verdict
+    print(f"[Critic] Verdict: {verdict} (score {review.quality_score}/10)")
+    if review.issues_found.strip():
+        print(f"[Critic] Issues:\n{review.issues_found.strip()}")
 
     # ── Step 4: Return based on verdict ───────────────────────
     if verdict == "APPROVED":
@@ -153,39 +170,15 @@ def critic_node(state: ResearchState) -> ResearchState:
         # Report needs work — extract feedback for Analyst
         print(f"[Critic] Report needs revision. Sending feedback to Analyst.")
 
-        # Extract just the feedback section from the review
-        feedback = extract_feedback(review)
+        # Fall back to the issue list if the model left feedback empty,
+        # so the Analyst never gets a revision request with no content
+        feedback = review.specific_feedback.strip() or review.issues_found.strip()
 
         return {
             "final_report": None,
             "critic_feedback": feedback,
             "iteration_count": new_iteration
         }
-
-
-def extract_feedback(review: str) -> str:
-    """
-    Extracts just the actionable feedback from the Critic's review.
-    We only want the SPECIFIC_FEEDBACK section, not the full review.
-
-    Args:
-        review: Full review text from the Critic
-
-    Returns:
-        Just the feedback section as a string
-    """
-    # Try to extract SPECIFIC_FEEDBACK section
-    if "SPECIFIC_FEEDBACK:" in review:
-        parts = review.split("SPECIFIC_FEEDBACK:")
-        if len(parts) > 1:
-            feedback = parts[1].strip()
-            # Cut off at next section if exists
-            if "QUALITY_SCORE:" in feedback:
-                feedback = feedback.split("QUALITY_SCORE:")[0].strip()
-            return feedback
-
-    # If we can't parse it, return the full review as feedback
-    return review
 
 
 def should_continue(state: ResearchState) -> str:

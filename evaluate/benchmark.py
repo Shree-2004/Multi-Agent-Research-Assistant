@@ -254,7 +254,10 @@ def run_benchmark(topic: str) -> dict:
     print(f"✓ Overall quality: {quality['overall_score']}")
 
     # ── Save results to CSV ────────────────────────────────────
-    save_benchmark_results(topic, timings, quality, total_time)
+    save_benchmark_results(
+        topic, timings, quality, total_time,
+        state.get("iteration_count", 0)
+    )
 
     return {
         "timings":    timings,
@@ -268,7 +271,8 @@ def save_benchmark_results(
     topic: str,
     timings: dict,
     quality: dict,
-    total_time: float
+    total_time: float,
+    iterations: int
 ):
     """
     Saves benchmark results to a CSV file for tracking over time.
@@ -279,6 +283,8 @@ def save_benchmark_results(
         timings: Dict of agent timing data
         quality: Dict of quality metrics
         total_time: Total pipeline execution time
+        iterations: Revision cycles the Critic requested (read from
+            pipeline state; the quality dict never carried it)
     """
     os.makedirs("evaluate", exist_ok=True)
 
@@ -293,7 +299,7 @@ def save_benchmark_results(
         "source_count":   quality["source_count"],
         "word_count":     quality["word_count"],
         "overall_score":  quality["overall_score"],
-        "iterations":     quality.get("iteration_count", 0)
+        "iterations":     iterations
     }
 
     csv_path = "evaluate/benchmark_results.csv"
