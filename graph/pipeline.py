@@ -38,7 +38,8 @@ def build_pipeline() -> StateGraph:
     
     The reflection loop:
     If critic says NEEDS_REVISION → goes back to analyst → writer → verifier → critic
-    Max 2 iterations before force approving.
+    At the default MAX_REFLECTION_ITERATIONS=2 that is at most 1 revision
+    cycle; the Critic force-approves the draft after that.
 
     Returns:
         Compiled LangGraph app ready to run

@@ -43,7 +43,7 @@ User Input: "Latest advances in quantum computing"
 │                   │  Returns a typed verdict + score (X/10)
 │                   │  APPROVED → final report
 │                   │  NEEDS_REVISION → routes back to Analyst
-│                   │  (max 2 revision cycles)
+│                   │  (1 revision cycle by default)
 └────────┬──────────┘
          ↓
    Final Report → Markdown + PDF export
@@ -221,7 +221,7 @@ Results are appended to `evaluate/benchmark_results.csv` for cross-run compariso
 
 - **5-Agent LangGraph Pipeline** — Researcher → Analyst → Writer → Verifier → Critic with clear separation of concerns
 - **Citation Verification** — every cited claim is checked against the source text it cites; citation precision is reported per run
-- **Reflection Loop** — Critic evaluates quality and routes back to Analyst for up to 2 revision cycles
+- **Reflection Loop** — Critic evaluates quality and routes back to Analyst — 1 revision cycle at the default `MAX_REFLECTION_ITERATIONS=2`, then force-approves
 - **Dual-Source Retrieval** — Tavily for real-time web search + ArXiv API for peer-reviewed academic papers
 - **Quality Scoring** — A heuristic score (sections, length, source count). It does not check whether citations are correct — citation precision does
 - **Benchmarking** — Track per-agent execution times, quality scores and citation precision across runs via CSV
