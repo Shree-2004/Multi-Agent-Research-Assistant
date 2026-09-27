@@ -1,10 +1,10 @@
 # 🔬 Multi-Agent Research Assistant
 
-**LangGraph · Gemini 2.0 Flash · Tavily · ArXiv API · Streamlit · fpdf2**
+**LangGraph · Gemini 2.5 Flash · Tavily · ArXiv API · Streamlit · fpdf2**
 
-A production-grade AI research pipeline powered by **4 specialized LangGraph agents** that collaboratively research any topic and generate professional, citation-backed reports — with a built-in quality reflection loop.
+A production-grade AI research pipeline powered by **5 specialized LangGraph agents** that collaboratively research any topic and generate citation-backed reports — with a Citation Verifier that checks each cited claim against its source, and a quality reflection loop.
 
-> Architected a 4-agent LangGraph pipeline (Researcher → Analyst → Writer → Critic) with a reflection loop — Critic agent evaluates output quality and routes back to Analyst for up to 2 revision cycles. Integrated dual-source retrieval (Tavily + ArXiv), benchmarking module, and full Markdown + PDF export via Streamlit.
+> Architected a 5-agent LangGraph pipeline (Researcher → Analyst → Writer → Verifier → Critic) with a reflection loop — a Citation Verifier labels every cited claim against the retrieved source text, and the Critic routes failures back to the Analyst for revision. Integrated dual-source retrieval (Tavily + ArXiv), a benchmark that measures citation precision, and Markdown + PDF export via Streamlit.
 
 ---
 
@@ -28,12 +28,19 @@ User Input: "Latest advances in quantum computing"
 ┌───────────────────┐
 │   WRITER          │  Transforms analysis into a structured report
 │   Agent 3         │  Executive Summary → Findings → Conclusion
-│                   │  Every claim backed by source citations
+│                   │  Cites sources by number, e.g. [3]
 └────────┬──────────┘
          ↓
 ┌───────────────────┐
-│   CRITIC          │  Reviews against 5-point quality checklist
-│   Agent 4         │  Returns QUALITY_SCORE (X/10)
+│   VERIFIER        │  Pulls out every cited sentence
+│   Agent 4         │  Checks it against the text of the source it cites
+│                   │  SUPPORTED / PARTIAL / UNSUPPORTED / DANGLING
+└────────┬──────────┘
+         ↓
+┌───────────────────┐
+│   CRITIC          │  Reviews against 5-point quality checklist,
+│   Agent 5         │  with the Verifier's failures as evidence
+│                   │  Returns a typed verdict + score (X/10)
 │                   │  APPROVED → final report
 │                   │  NEEDS_REVISION → routes back to Analyst
 │                   │  (max 2 revision cycles)
@@ -52,7 +59,20 @@ The Critic agent evaluates every draft against a strict checklist:
 4. **Completeness** — Are important points missing?
 5. **References** — Do sources include URLs?
 
-If the report scores below threshold → feedback is routed back to the **Analyst** (not the Writer), who revises the analysis with specific feedback. This loops through Analyst → Writer → Critic for up to **2 revision cycles** before force-approving.
+If the Critic returns `NEEDS_REVISION`, feedback is routed back to the **Analyst** (not the Writer), who revises the analysis. Any claims the Verifier found unsupported are passed along verbatim. This loops through Analyst → Writer → Verifier → Critic, with at most **1 revision cycle** at the default `MAX_REFLECTION_ITERATIONS=2`; after that the current draft is force-approved.
+
+### Citation Verifier
+
+The Critic can see that a citation *exists*; it can't see whether the source says what the report claims. The Verifier checks that:
+
+- Each sentence with a numeric citation (`[3]`, `[2, 5]`, `[2-4]`) is extracted deterministically.
+- Gemini labels it against the cited sources' retrieved text only: **SUPPORTED**, **PARTIAL** (adds specifics the source doesn't state) or **UNSUPPORTED**.
+- A citation to a source number that doesn't exist is **DANGLING**, decided without a model call.
+- A claim the model returns no verdict for is **UNVERIFIED** and is excluded from the score, never counted as supported.
+
+**Citation precision** = supported ÷ claims judged. It shows `n/a`, not 100%, when there's nothing to check.
+
+**Limitation:** the Verifier only sees what the pipeline retrieved — Tavily excerpts and ArXiv abstracts trimmed to 500 characters — not full papers. `UNSUPPORTED` means "not supported by the text the pipeline read", not "false".
 
 ---
 
@@ -88,7 +108,7 @@ Open `http://localhost:8501` → enter any topic → one-click report generation
 | Layer | Technology | Role |
 |-------|-----------|------|
 | **Agent Orchestration** | LangGraph `StateGraph` | Defines nodes, edges, conditional routing, shared state |
-| **LLM** | Gemini 2.0 Flash | Powers all 4 agents with tuned temperatures (0.2–0.4) |
+| **LLM** | Gemini 2.5 Flash (`GEMINI_MODEL` in `.env`) | Powers all 5 agents with tuned temperatures (0–0.4) |
 | **Web Search** | Tavily API (`search_depth=advanced`) | Real-time web retrieval, 10+ results per query |
 | **Academic Search** | ArXiv API (`arxiv` library) | Peer-reviewed papers, sorted by relevance |
 | **State Management** | `TypedDict` + `Annotated` reducers | Shared memory across agents with append-only source list |
@@ -109,7 +129,8 @@ multi-agent-research-assistant/
 │   ├── researcher.py             # Agent 1 — generates queries, searches Tavily + ArXiv
 │   ├── analyst.py                # Agent 2 — structured analysis with feedback incorporation
 │   ├── writer.py                 # Agent 3 — citation-backed report writing
-│   └── critic.py                 # Agent 4 — quality checklist + reflection routing
+│   ├── verifier.py               # Agent 4 — checks each cited claim against its source
+│   └── critic.py                 # Agent 5 — quality checklist + reflection routing
 │
 ├── graph/
 │   ├── state.py                  # ResearchState TypedDict — shared agent memory
@@ -141,44 +162,49 @@ Run the benchmark module to measure per-agent execution time and report quality:
 python evaluate/benchmark.py
 ```
 
-**Real run** (`evaluate/benchmark_results.csv`, topic: "latest advances in protein
-folding AI") — this particular run needed one full reflection/revision cycle
-(the Critic sent it back once for missing citation dates before force-approving
-on the second pass), so the total includes a full extra Analyst→Writer→Critic
-pass, not just the fast path:
+**Real run** (2026-09-27, topic: "latest advances in protein folding AI"). The
+Critic sent the first draft back once, then force-approved the revision at the cap,
+so the total includes one full extra Analyst → Writer → Verifier → Critic pass:
 
 ```
 📊 Agent Execution Times:
 ╭─────────────────────┬─────────╮
-│ Agent                │ Time    │
+│ Agent               │ Time    │
 ├─────────────────────┼─────────┤
-│ Researcher           │ 21.01s  │
-│ Analyst              │ 22.42s  │
-│ Writer               │ 22.18s  │
-│ Critic                │ 23.25s  │
-│ Analyst (revision 1) │ 29.72s  │
-│ Writer (revision 1)  │ 23.43s  │
-│ Critic (revision 1)  │ 13.95s  │
-│ TOTAL                 │ 155.97s │
+│ Researcher          │ 17.73s  │
+│ Analyst             │ 28.43s  │
+│ Writer              │ 20.01s  │
+│ Verifier            │ 33.69s  │
+│ Critic              │ 9.02s   │
+│ Analyst Revision 1  │ 33.28s  │
+│ Writer Revision 1   │ 28.65s  │
+│ Verifier Revision 1 │ 55.18s  │
+│ Critic Revision 1   │ 16.89s  │
+│ TOTAL               │ 242.87s │
 ╰─────────────────────┴─────────╯
 
-📈 Quality Metrics:
-╭──────────────────┬────────╮
-│ Metric           │ Value  │
-├──────────────────┼────────┤
-│ Sources Found    │ 17     │
-│ Word Count       │ 1816   │
-│ Sections Found   │ 6/6    │
-│ Citation Count   │ 27     │
-│ OVERALL SCORE    │ 9.4/10 │
-╰──────────────────┴────────╯
+📈 Quality Metrics (final report):
+╭────────────────────┬─────────╮
+│ Metric             │ Value   │
+├────────────────────┼─────────┤
+│ Sources Found      │ 17      │
+│ Word Count         │ 1451    │
+│ Sections Found     │ 6/6     │
+│ Cited Claims       │ 16      │
+│   Supported        │ 14      │
+│   Partial          │ 1       │
+│   Unsupported      │ 1       │
+│ Citation Precision │ 0.875   │
+│ OVERALL SCORE      │ 10.0/10 │
+╰────────────────────┴─────────╯
 ```
 
-A run that the Critic approves on the first pass (no revision cycle) finishes in
-roughly a third of that time — the reflection loop trades latency for the Critic's
-own quality checklist actually being enforced rather than rubber-stamped.
+What this run shows:
 
-Results are automatically appended to `evaluate/benchmark_results.csv` for cross-run comparison.
+- **The revision made citations worse, not better.** The first draft scored 16/16 supported (precision 1.0). The Critic asked for revision; the rewrite introduced one unsupported and one partial claim (0.875), and the cap then force-approved it. This is a single run, not a trend, but the heuristic `OVERALL SCORE` (10/10) could not have shown it at all.
+- **Verification is the slowest stage** — 34–55s per draft for 16 claims, checked in sequential batches of 15.
+
+Results are appended to `evaluate/benchmark_results.csv` for cross-run comparison (local only — the file is gitignored).
 
 ---
 
@@ -193,11 +219,12 @@ Results are automatically appended to `evaluate/benchmark_results.csv` for cross
 
 ## ✨ Key Features
 
-- **4-Agent LangGraph Pipeline** — Researcher → Analyst → Writer → Critic with clear separation of concerns
+- **5-Agent LangGraph Pipeline** — Researcher → Analyst → Writer → Verifier → Critic with clear separation of concerns
+- **Citation Verification** — every cited claim is checked against the source text it cites; citation precision is reported per run
 - **Reflection Loop** — Critic evaluates quality and routes back to Analyst for up to 2 revision cycles
 - **Dual-Source Retrieval** — Tavily for real-time web search + ArXiv API for peer-reviewed academic papers
-- **Quality Scoring** — Every report gets a structured quality score (sections, citations, length, sources)
-- **Benchmarking** — Track per-agent execution times and quality scores across runs via CSV
+- **Quality Scoring** — A heuristic score (sections, length, source count). It does not check whether citations are correct — citation precision does
+- **Benchmarking** — Track per-agent execution times, quality scores and citation precision across runs via CSV
 - **Full Export** — Download reports as Markdown or PDF with one click
 - **Production Patterns** — Built with LangGraph StateGraph, the same framework used in production AI systems
 
@@ -211,6 +238,7 @@ Each agent has a built-in test function — run any file directly:
 python agents/researcher.py     # Test search + source gathering
 python agents/analyst.py        # Test analysis with fake sources
 python agents/writer.py         # Test report writing with fake analysis
+python agents/verifier.py       # Test citation checks with a planted false citation
 python agents/critic.py         # Test quality evaluation with fake report
 python graph/pipeline.py        # Test full end-to-end pipeline
 python output/report_exporter.py  # Test Markdown + PDF export
