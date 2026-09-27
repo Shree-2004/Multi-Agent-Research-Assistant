@@ -1,6 +1,6 @@
 # graph/pipeline.py
 # ─────────────────────────────────────────────────────────────
-# This file connects all 4 agents into a single LangGraph pipeline.
+# This file connects all 5 agents into a single LangGraph pipeline.
 # It defines the nodes, edges, and conditional routing logic.
 # Think of this as the "manager" that controls the flow.
 # ─────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ from graph.state import ResearchState
 from agents.researcher import researcher_node
 from agents.analyst import analyst_node
 from agents.writer import writer_node
+from agents.verifier import verifier_node
 from agents.critic import critic_node, should_continue
 
 # Windows consoles default to cp1252, which can't encode the
@@ -33,10 +34,10 @@ def build_pipeline() -> StateGraph:
     Builds and compiles the full LangGraph pipeline.
     
     The pipeline flow is:
-    researcher → analyst → writer → critic → (end OR back to analyst)
+    researcher → analyst → writer → verifier → critic → (end OR back to analyst)
     
     The reflection loop:
-    If critic says NEEDS_REVISION → goes back to analyst → writer → critic
+    If critic says NEEDS_REVISION → goes back to analyst → writer → verifier → critic
     Max 2 iterations before force approving.
 
     Returns:
@@ -48,11 +49,12 @@ def build_pipeline() -> StateGraph:
     # Every node receives and returns a ResearchState
     workflow = StateGraph(ResearchState)
 
-    # ── Step 2: Add all 4 agents as nodes ─────────────────────
+    # ── Step 2: Add all 5 agents as nodes ─────────────────────
     # Each node is a function that takes state and returns state
     workflow.add_node("researcher", researcher_node)
     workflow.add_node("analyst",    analyst_node)
     workflow.add_node("writer",     writer_node)
+    workflow.add_node("verifier",   verifier_node)
     workflow.add_node("critic",     critic_node)
 
     # ── Step 3: Define the edges (flow between agents) ─────────
@@ -60,7 +62,8 @@ def build_pipeline() -> StateGraph:
     workflow.set_entry_point("researcher")       # Always start here
     workflow.add_edge("researcher", "analyst")   # Researcher → Analyst
     workflow.add_edge("analyst",    "writer")    # Analyst → Writer
-    workflow.add_edge("writer",     "critic")    # Writer → Critic
+    workflow.add_edge("writer",     "verifier")  # Writer → Verifier
+    workflow.add_edge("verifier",   "critic")    # Verifier → Critic
 
     # ── Step 4: Add conditional routing after Critic ───────────
     # This is the reflection loop logic
@@ -107,6 +110,7 @@ def run_pipeline(topic: str) -> dict:
         "raw_sources": [],
         "analysis_notes": "",
         "draft_report": "",
+        "citation_checks": [],
         "critic_feedback": None,
         "final_report": None,
         "iteration_count": 0
@@ -130,11 +134,11 @@ def run_pipeline(topic: str) -> dict:
 def test_pipeline():
     """
     Test the full pipeline end to end.
-    This is the ultimate test — all 4 agents working together.
+    This is the ultimate test — all 5 agents working together.
     Run this file directly to verify the complete flow works.
     """
     print("Testing Full Pipeline...")
-    print("This will run all 4 agents — may take 30-60 seconds\n")
+    print("This will run all 5 agents — may take 30-60 seconds\n")
 
     result = run_pipeline("latest advances in protein folding AI")
 

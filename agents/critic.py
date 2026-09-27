@@ -19,6 +19,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from typing import Literal
 
 from graph.state import ResearchState
+from agents.verifier import format_failures
 
 # Windows consoles default to cp1252, which can't encode the
 # checkmarks/arrows in the log output below — force UTF-8.
@@ -120,9 +121,20 @@ def critic_node(state: ResearchState) -> ResearchState:
         }
 
     # ── Step 2: Ask Gemini to review the report ────────────────
+    # The Verifier's failures go in as evidence: the Critic can see
+    # a citation exists, but not whether the source supports it.
+    citation_failures = format_failures(state.get("citation_checks", []))
+    review_request = f"Review this research report:\n\n{draft_report}"
+    if citation_failures:
+        review_request += (
+            "\n\nThe Citation Verifier checked each cited claim against the "
+            "source text it cites and found these failures. Treat each one "
+            f"as a CITATIONS problem:\n{citation_failures}"
+        )
+
     messages = [
         SystemMessage(content=CRITIC_SYSTEM_PROMPT),
-        HumanMessage(content=f"Review this research report:\n\n{draft_report}")
+        HumanMessage(content=review_request)
     ]
 
     review = structured_llm.invoke(messages)
@@ -161,10 +173,12 @@ def critic_node(state: ResearchState) -> ResearchState:
         # that would just get cut off with no final_report set.
         if new_iteration >= max_iterations:
             print(f"[Critic] Max revision cycles reached. Force approving current draft.")
+            # No feedback is sent, so no revision cycle happens — keep
+            # the count as-is so it reports revisions actually run
             return {
                 "final_report": draft_report,
                 "critic_feedback": None,
-                "iteration_count": new_iteration
+                "iteration_count": iteration_count
             }
 
         # Report needs work — extract feedback for Analyst
@@ -173,6 +187,11 @@ def critic_node(state: ResearchState) -> ResearchState:
         # Fall back to the issue list if the model left feedback empty,
         # so the Analyst never gets a revision request with no content
         feedback = review.specific_feedback.strip() or review.issues_found.strip()
+
+        # Pass the verifier's failures through verbatim so the Analyst
+        # sees exactly which claims lacked support, not a paraphrase
+        if citation_failures:
+            feedback += f"\n\nUnsupported citations to fix:\n{citation_failures}"
 
         return {
             "final_report": None,

@@ -11,6 +11,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from graph.pipeline import run_pipeline
+from agents.verifier import summarize_checks
 from output.report_exporter import export_report
 
 # Windows consoles default to cp1252, which can't encode the
@@ -142,6 +143,7 @@ if run_button and topic.strip():
     status_researcher = st.empty()
     status_analyst    = st.empty()
     status_writer     = st.empty()
+    status_verifier   = st.empty()
     status_critic     = st.empty()
 
     def update_status(agent: str, state: str):
@@ -150,12 +152,14 @@ if run_button and topic.strip():
             "researcher": "🔍",
             "analyst":    "🧠",
             "writer":     "✍️",
+            "verifier":   "🧾",
             "critic":     "🔎"
         }
         labels = {
             "researcher": "Researcher — Searching web + ArXiv",
             "analyst":    "Analyst — Extracting insights",
             "writer":     "Writer — Writing report",
+            "verifier":   "Verifier — Checking citations against sources",
             "critic":     "Critic — Reviewing quality"
         }
         css_class = {
@@ -179,12 +183,13 @@ if run_button and topic.strip():
             "researcher": status_researcher,
             "analyst":    status_analyst,
             "writer":     status_writer,
+            "verifier":   status_verifier,
             "critic":     status_critic
         }
         placeholders[agent].markdown(html, unsafe_allow_html=True)
 
     # Set all to waiting initially
-    for agent in ["researcher", "analyst", "writer", "critic"]:
+    for agent in ["researcher", "analyst", "writer", "verifier", "critic"]:
         update_status(agent, "waiting")
 
     # ── Progress Bar ───────────────────────────────────────────
@@ -207,6 +212,7 @@ if run_button and topic.strip():
         update_status("analyst", "done")
         progress.progress(70, text="✍️ Writer composing report...")
         update_status("writer", "done")
+        update_status("verifier", "done")
         progress.progress(90, text="🔎 Critic reviewing quality...")
         update_status("critic", "done")
         progress.progress(100, text="✅ Pipeline complete!")
@@ -223,10 +229,19 @@ if run_button and topic.strip():
                       f"{len(final_report)} characters)")
 
             # ── Stats Row ──────────────────────────────────────
-            m1, m2, m3 = st.columns(3)
+            citations = summarize_checks(result.get("citation_checks", []))
+            precision = citations["citation_precision"]
+
+            m1, m2, m3, m4 = st.columns(4)
             m1.metric("Sources Found",   len(raw_sources))
             m2.metric("Revisions Made",  iterations)
             m3.metric("Report Length",   f"{len(final_report)} chars")
+            m4.metric("Citations Supported",
+                      "n/a" if precision is None else f"{precision:.0%}",
+                      help=f"{citations['SUPPORTED']} of "
+                           f"{citations['claims_checked'] - citations['UNVERIFIED']} "
+                           "checked claims are supported by the retrieved text "
+                           "they cite")
 
             # ── Report Display ─────────────────────────────────
             st.markdown("### 📄 Final Report")

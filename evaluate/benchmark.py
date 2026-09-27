@@ -20,6 +20,7 @@ from graph.state import ResearchState
 from agents.researcher import researcher_node
 from agents.analyst import analyst_node
 from agents.writer import writer_node
+from agents.verifier import verifier_node, summarize_checks
 from agents.critic import critic_node
 
 # Windows consoles default to cp1252, which can't encode the
@@ -160,6 +161,7 @@ def run_benchmark(topic: str) -> dict:
         "raw_sources": [],
         "analysis_notes": "",
         "draft_report": "",
+        "citation_checks": [],
         "critic_feedback": None,
         "final_report": None,
         "iteration_count": 0
@@ -176,6 +178,10 @@ def run_benchmark(topic: str) -> dict:
 
     state, timings["writer"] = measure_agent(
         writer_node, state, "Writer"
+    )
+
+    state, timings["verifier"] = measure_agent(
+        verifier_node, state, "Verifier"
     )
 
     state, timings["critic"] = measure_agent(
@@ -199,6 +205,11 @@ def run_benchmark(topic: str) -> dict:
         )
         timings[f"writer_revision_{iteration}"] = writer_time
 
+        state, verifier_time = measure_agent(
+            verifier_node, state, f"Verifier (revision {iteration})"
+        )
+        timings[f"verifier_revision_{iteration}"] = verifier_time
+
         state, critic_time = measure_agent(
             critic_node, state, f"Critic (revision {iteration})"
         )
@@ -210,6 +221,8 @@ def run_benchmark(topic: str) -> dict:
 
     # ── Calculate quality scores ───────────────────────────────
     quality = calculate_quality_score(state)
+    # Checks describe the last draft, which is the approved final report
+    citations = summarize_checks(state.get("citation_checks", []))
 
     # ── Display results ────────────────────────────────────────
     print(f"\n{'='*60}")
@@ -236,6 +249,13 @@ def run_benchmark(topic: str) -> dict:
         ["Word Count",       quality["word_count"]],
         ["Sections Found",   quality["sections_found"]],
         ["Citation Count",   quality["citation_count"]],
+        ["Cited Claims",     citations["claims_checked"]],
+        ["  Supported",      citations["SUPPORTED"]],
+        ["  Partial",        citations["PARTIAL"]],
+        ["  Unsupported",    citations["UNSUPPORTED"]],
+        ["  Dangling",       citations["DANGLING"]],
+        ["  Unverified",     citations["UNVERIFIED"]],
+        ["Citation Precision", citations["citation_precision"]],
         ["Sections Score",   quality["sections_score"]],
         ["Length Score",     quality["length_score"]],
         ["Source Score",     quality["source_score"]],
@@ -255,7 +275,7 @@ def run_benchmark(topic: str) -> dict:
 
     # ── Save results to CSV ────────────────────────────────────
     save_benchmark_results(
-        topic, timings, quality, total_time,
+        topic, timings, quality, citations, total_time,
         state.get("iteration_count", 0)
     )
 
@@ -271,6 +291,7 @@ def save_benchmark_results(
     topic: str,
     timings: dict,
     quality: dict,
+    citations: dict,
     total_time: float,
     iterations: int
 ):
@@ -282,6 +303,7 @@ def save_benchmark_results(
         topic: Research topic
         timings: Dict of agent timing data
         quality: Dict of quality metrics
+        citations: Citation Verifier summary for the final report
         total_time: Total pipeline execution time
         iterations: Revision cycles the Critic requested (read from
             pipeline state; the quality dict never carried it)
@@ -295,10 +317,18 @@ def save_benchmark_results(
         "researcher_s":   timings.get("researcher", 0),
         "analyst_s":      timings.get("analyst", 0),
         "writer_s":       timings.get("writer", 0),
+        "verifier_s":     timings.get("verifier", 0),
         "critic_s":       timings.get("critic", 0),
         "source_count":   quality["source_count"],
         "word_count":     quality["word_count"],
         "overall_score":  quality["overall_score"],
+        "cited_claims":   citations["claims_checked"],
+        "supported":      citations["SUPPORTED"],
+        "partial":        citations["PARTIAL"],
+        "unsupported":    citations["UNSUPPORTED"],
+        "dangling":       citations["DANGLING"],
+        "unverified":     citations["UNVERIFIED"],
+        "citation_precision": citations["citation_precision"],
         "iterations":     iterations
     }
 

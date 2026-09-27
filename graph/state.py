@@ -43,6 +43,12 @@ class ResearchState(TypedDict):
     # Full report written by the Writer agent
     # Contains all sections: summary, findings, references etc.
 
+    # ── Verifier Output ────────────────────────────────────────
+    citation_checks: List[dict]
+    # One entry per cited claim in the current draft
+    # Keys: id, text, source_ids, label, reason
+    # Overwritten on every draft (not appended)
+
     # ── Agent 4 Output ─────────────────────────────────────────
     critic_feedback: Optional[str]
     # Feedback from the Critic agent

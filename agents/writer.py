@@ -53,7 +53,7 @@ Your report must follow this EXACT structure:
 
 ## Key Findings
 - Write 5-7 findings as clear paragraphs (not bullet points)
-- Each finding must end with a citation like [Source Title, Year]
+- Each finding must end with a numeric citation like [3]
 - Findings should flow logically from one to the next
 
 ## Contradictions & Debates
@@ -75,13 +75,18 @@ Your report must follow this EXACT structure:
 - What should the reader take away from this?
 
 ## References
-- List ALL sources used in this format:
+- List ALL sources used in this format, keeping each source's
+  number from the provided source list (do NOT renumber):
   [1] Title — URL — Date
-  [2] Title — URL — Date
+  [4] Title — URL — Date
 
 Rules:
 - Write in clear, professional academic English
 - Every claim MUST have a citation
+- Cite ONLY with the source's number from the provided list, e.g. [3]
+  or [2, 5] — never with titles or author names, and never with a
+  number that is not in the list
+- Only cite a source for what that source actually says
 - Do NOT use bullet points in Key Findings section — use paragraphs
 - The report should be 800-1200 words (excluding references)
 - Be objective — do not express personal opinions
@@ -126,7 +131,7 @@ Use these analysis notes as your content:
 Use these sources for citations:
 {sources_text}
 
-Remember to cite sources throughout the report using [Source Title, Year] format.
+Remember to cite sources throughout the report using their numbers from this list, e.g. [3].
 """
 
     # ── Step 3: Call Gemini ────────────────────────────────────
